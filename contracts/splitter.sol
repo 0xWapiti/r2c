@@ -2,13 +2,10 @@
 
 pragma solidity ^0.8.17;
 
-// Uncomment this line to use console.log
-// import "hardhat/console.sol";
-
-import {Address, Turnstile} from "./deps.sol";
+import {Address, Turnstile, Ownable} from "./deps.sol";
 import {Cantofornia} from "./minter.sol";
 
-contract Splitter {
+contract Splitter is Ownable {
     /** Pool params **/
 
     // the timestamp when the contract was instantiated (used for unlock calculations)
@@ -56,7 +53,8 @@ contract Splitter {
     // the ID of this contract's CSR NFT
     uint256 public splitterCsrId;
     // the CSR turnstile contract
-    Turnstile private turnstile = Turnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
+    Turnstile private turnstile = Turnstile(0x8279528D7E3E5988B24d5ae23D7b80bC86BBA1Cf); // a testnet turnstile
+    // Turnstile private turnstile = Turnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
     // the address of the wagon minter contract
     address wagonAddress;
 
@@ -81,10 +79,7 @@ contract Splitter {
 
         // Initialize CSR variables
         splitterCsrId = turnstile.register(address(this));
-        wagonAddress = msg.sender;
     }
-
-    // TODO: add protection against re-entrancy
 
     modifier onlyVictors(uint256 wagonTokenId) {
         require(Cantofornia(wagonAddress).ownsWagon(msg.sender, wagonTokenId), "Unauthorized sender. msg.sender is not the owner of the wagon");
@@ -103,13 +98,11 @@ contract Splitter {
         _;
     }
 
-    // fallback function
     fallback() external payable {
         addToLockedPool(msg.value);
         emit ReceivedFunds(msg.value, msg.sender);
     }
 
-    // receive function
     receive() external payable {
         addToLockedPool(msg.value);
         emit ReceivedFunds(msg.value, msg.sender);
@@ -120,9 +113,12 @@ contract Splitter {
         emit ReceivedFunds(msg.value, msg.sender);
     }
 
+    // Requires owner to create wagon and CSR NFTs
+    // Owner must call setSplitterInfo from the wagon contract
     function setWagonCsrId(uint256 csrId) external {
-        require(msg.sender == wagonAddress, "Unauthorized. msg.sender must be the wagon contract");
+        require(owner() == tx.origin, "Unauthorized. msg.sender must be the wagon contract");
         wagonCsrId = csrId;
+        wagonAddress = msg.sender;
     }
 
     function registerWagon(uint256 wagonTokenId) external onlyVictors(wagonTokenId) {
